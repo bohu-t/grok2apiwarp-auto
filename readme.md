@@ -40,9 +40,9 @@ docker compose up -d --build
 
 启动后访问：
 
-- `http://<你的服务器IP>:18600`
-- `http://<你的服务器IP>:8000/admin`
-- `socks5://<你的服务器IP>:1080`：内置 WARP 出口，默认允许局域网访问
+- `http://<你的服务器IP>:18600` — 注册控制台
+- `http://<你的服务器IP>:8000` — grok2api v3 管理端（内置前端）
+- `socks5://<你的服务器IP>:1080` — 内置 WARP 出口，默认允许局域网访问
 
 如果只想让 WARP 出口本机可用，把 `.env` 里的 `WARP_HOST` 改成 `127.0.0.1`。
 
@@ -61,7 +61,7 @@ docker compose up -d --build
 默认情况下：
 
 - `browser_proxy` 和 `proxy` 已经预设为容器内的 `warp`
-- `api.endpoint` 和 `api.token` 已经预设为容器内的 `grok2api`
+- `api.endpoint` 和 `api.token` 已经预设为容器内的 `grok2api`（v3 使用 `/api/admin/v1/accounts/import`）
 
 所以第一次部署时，你通常只需要补全临时邮箱这一组参数。
 
@@ -120,9 +120,10 @@ python DrissionPage_example.py --count 1
   "proxy": "",
   "browser_proxy": "",
   "api": {
-    "endpoint": "http://127.0.0.1:8000/admin/api/tokens/add",
+    "endpoint": "http://127.0.0.1:8000/api/admin/v1/accounts/import",
     "token": "",
-    "append": true
+    "append": true,
+    "import_type": "build"
   }
 }
 ```

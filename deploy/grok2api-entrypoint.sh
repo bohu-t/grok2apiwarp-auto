@@ -1,49 +1,25 @@
 #!/usr/bin/env sh
 set -eu
 
-# Compatibility wrapper for older deployments that still mount this script.
-# The current grok2api image already ships its own entrypoint and runs app.main:app.
+# ⚠️ DEPRECATED: grok2api v3 自带 entrypoint（docker/entrypoint.sh）
+# 本脚本仅用于向后兼容旧部署配置，新版请使用 Dockerfile 内置 entrypoint。
+
+CONFIG_SOURCE="${GROK2API_CONFIG_SOURCE:-/run/grok2api/config.yaml}"
 DATA_DIR="${DATA_DIR:-/app/data}"
-LOG_DIR="${LOG_DIR:-/app/logs}"
-SERVER_HOST="${SERVER_HOST:-0.0.0.0}"
-SERVER_PORT="${SERVER_PORT:-8000}"
-SERVER_WORKERS="${SERVER_WORKERS:-1}"
-GROK2API_APP_KEY="${GROK2API_APP_KEY:-grok2api}"
-GROK2API_API_KEY="${GROK2API_API_KEY:-}"
-GROK2API_PROXY_MODE="${GROK2API_PROXY_MODE:-single_proxy}"
-GROK2API_BASE_PROXY_URL="${GROK2API_BASE_PROXY_URL:-socks5://warp:1080}"
-GROK2API_ASSET_PROXY_URL="${GROK2API_ASSET_PROXY_URL:-$GROK2API_BASE_PROXY_URL}"
-GROK2API_CLEARANCE_MODE="${GROK2API_CLEARANCE_MODE:-flaresolverr}"
-FLARESOLVERR_URL="${FLARESOLVERR_URL:-http://flaresolverr:8191}"
-CF_REFRESH_INTERVAL="${CF_REFRESH_INTERVAL:-600}"
-CF_TIMEOUT="${CF_TIMEOUT:-60}"
-CONFIG_FILE="${DATA_DIR}/config.toml"
 
-mkdir -p "$DATA_DIR" "$LOG_DIR"
+echo "[grok2apiwarp] 检测到旧版 entrypoint，自动适配 v3 配置格式..."
 
-if [ ! -s "$CONFIG_FILE" ]; then
-cat >"$CONFIG_FILE" <<EOF
-[app]
-app_key = "${GROK2API_APP_KEY}"
-api_key = "${GROK2API_API_KEY}"
+mkdir -p "$DATA_DIR"
 
-[features]
-temporary = true
-memory = false
-stream = true
-thinking = true
-
-[proxy.egress]
-mode = "${GROK2API_PROXY_MODE}"
-proxy_url = "${GROK2API_BASE_PROXY_URL}"
-resource_proxy_url = "${GROK2API_ASSET_PROXY_URL}"
-
-[proxy.clearance]
-mode = "${GROK2API_CLEARANCE_MODE}"
-flaresolverr_url = "${FLARESOLVERR_URL}"
-refresh_interval = ${CF_REFRESH_INTERVAL}
-timeout_sec = ${CF_TIMEOUT}
-EOF
+if [ ! -f /app/config.yaml ]; then
+  if [ -f "$CONFIG_SOURCE" ]; then
+    cp "$CONFIG_SOURCE" /app/config.yaml
+    echo "[grok2apiwarp] 已复制配置文件: $CONFIG_SOURCE -> /app/config.yaml"
+  else
+    echo "[grok2apiwarp] ⚠️ 配置文件不存在: $CONFIG_SOURCE" >&2
+    echo "[grok2apiwarp] 请将 config.yaml 挂载到 /run/grok2api/config.yaml" >&2
+    exit 1
+  fi
 fi
 
-exec granian --interface asgi --host "${SERVER_HOST}" --port "${SERVER_PORT}" --workers "${SERVER_WORKERS}" app.main:app
+exec /app/grok2api --config /app/config.yaml --listen "0.0.0.0:8000"

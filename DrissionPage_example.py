@@ -1073,12 +1073,14 @@ def append_sso_to_txt(sso_value, output_path=DEFAULT_SSO_FILE):
 
 
 def push_sso_to_api(new_tokens: list):
-    # 推送 SSO token 到 grok2api 管理接口。
-    # append=false：直接将本次 token 列表全量推送（覆盖）。
-    # append=true（默认）：先 GET 查询线上现有 token，合并本次后全量推送。
+    # 推送 SSO token 到 grok2api v3 管理接口。
+    # v3 API: POST /api/admin/v1/accounts/import (Build tokens)
+    #         或 POST /api/admin/v1/accounts/console/import (Console tokens)
+    # 使用 multipart/form-data 上传文件（每行一个 SSO token）。
     import json
     import urllib3
     import requests
+    import tempfile
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     config_path = os.path.join(os.path.dirname(__file__), "config.json")
@@ -1093,18 +1095,62 @@ def push_sso_to_api(new_tokens: list):
     endpoint = str(api_conf.get("endpoint", "")).strip()
     api_token = str(api_conf.get("token", "")).strip()
     append_mode = api_conf.get("append", True)
+    # v3 支持通过 import_type 指定账号类型: build / console / web
+    import_type = str(api_conf.get("import_type", "build")).strip().lower()
 
     if not endpoint or not api_token:
         return
 
+    tokens_to_push = [t for t in new_tokens if t]
+    if not tokens_to_push:
+        return
+
+    # --- grok2api v3: multipart 文件上传 ---
+    endpoint_l = endpoint.rstrip("/").lower()
+    is_v3_import = ("/api/admin/v1/accounts/import" in endpoint_l
+                    or "/api/admin/v1/accounts/web/import" in endpoint_l
+                    or "/api/admin/v1/accounts/console/import" in endpoint_l)
+
+    if is_v3_import:
+        # v3 API: 将 SSO token 写入临时文件，通过 multipart 上传
+        content = "\n".join(tokens_to_push)
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".txt", delete=False, encoding="utf-8"
+            ) as tmp:
+                tmp.write(content)
+                tmp_path = tmp.name
+
+            headers = {"Authorization": f"Bearer {api_token}"}
+            with open(tmp_path, "rb") as f:
+                resp = requests.post(
+                    endpoint,
+                    files={"file": ("tokens.txt", f, "text/plain")},
+                    headers=headers,
+                    timeout=60,
+                    verify=False,
+                )
+            os.unlink(tmp_path)
+
+            if resp.status_code == 200:
+                result = resp.json()
+                created = result.get("created", 0) if isinstance(result, dict) else 0
+                updated = result.get("updated", 0) if isinstance(result, dict) else 0
+                print(f"[*] SSO token 已推送到 API v3（新建 {created}, 更新 {updated}, 共 {len(tokens_to_push)} 个）")
+            else:
+                print(f"[Warn] 推送 API v3 返回异常: HTTP {resp.status_code} {resp.text[:300]}")
+        except Exception as e:
+            print(f"[Warn] 推送 API v3 失败: {e}")
+            if 'tmp_path' in dir() and os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+        return
+
+    # --- 旧版 API 兼容逻辑（v2 /admin/api/tokens/*） ---
     headers = {
         "Authorization": f"Bearer {api_token}",
         "Content-Type": "application/json",
     }
 
-    tokens_to_push = [t for t in new_tokens if t]
-
-    endpoint_l = endpoint.rstrip("/").lower()
     is_latest_add_api = endpoint_l.endswith("/admin/api/tokens/add")
     is_latest_admin_api = "/admin/api/tokens" in endpoint_l
 
@@ -1113,10 +1159,6 @@ def push_sso_to_api(new_tokens: list):
             get_resp = requests.get(endpoint, headers=headers, timeout=15, verify=False)
             if get_resp.status_code == 200:
                 data = get_resp.json()
-                # 兼容三种响应格式：
-                # 最新 grok2api 管理接口: {"tokens": [{"token": "...", "pool": "basic"}]}
-                # 早期新版: {"tokens": {"ssoBasic": [...]}}
-                # 旧版: {"ssoBasic": [...]}
                 if isinstance(data, dict) and isinstance(data.get("tokens"), list):
                     existing = data["tokens"]
                 elif isinstance(data, dict) and isinstance(data.get("tokens"), dict):

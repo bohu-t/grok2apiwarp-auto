@@ -9,8 +9,9 @@
     "proxy": "",
     "browser_proxy": "",
     "api": {
-        "endpoint": "http://127.0.0.1:8000/admin/api/tokens/add",
+        "endpoint": "http://127.0.0.1:8000/api/admin/v1/accounts/import",
         "token": "",
-        "append": true
+        "append": true,
+        "import_type": "build"
     }
 }
