@@ -9,8 +9,8 @@
     "proxy": "",
     "browser_proxy": "",
     "api": {
-        "endpoint": "http://127.0.0.1:8000/api/admin/v1/accounts/import",
-        "token": "",
+        "endpoint": "http://192.168.124.168:2202/api/accounts/buffer",
+        "token": "<chatgpt2api_admin_password>",
         "append": true,
         "import_type": "build"
     }

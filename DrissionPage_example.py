@@ -1152,9 +1152,11 @@ def push_sso_to_api(new_tokens: list):
     }
 
     is_latest_add_api = endpoint_l.endswith("/admin/api/tokens/add")
+    is_chatgpt2api_buffer_api = endpoint_l.endswith("/api/accounts/buffer")
+    is_chatgpt2api_accounts_api = endpoint_l.endswith("/api/accounts")
     is_latest_admin_api = "/admin/api/tokens" in endpoint_l
 
-    if append_mode and not is_latest_add_api:
+    if append_mode and not (is_latest_add_api or is_chatgpt2api_buffer_api or is_chatgpt2api_accounts_api):
         try:
             get_resp = requests.get(endpoint, headers=headers, timeout=15, verify=False)
             if get_resp.status_code == 200:
@@ -1186,6 +1188,10 @@ def push_sso_to_api(new_tokens: list):
 
     if is_latest_add_api:
         payload = {"tokens": tokens_to_push, "pool": "basic", "tags": ["grok-register"]}
+    elif is_chatgpt2api_buffer_api:
+        payload = {"tokens": tokens_to_push, "source": "grok-register"}
+    elif is_chatgpt2api_accounts_api:
+        payload = {"tokens": tokens_to_push, "to_buffer": True, "source": "grok-register"}
     elif is_latest_admin_api:
         payload = {"basic": tokens_to_push}
     else:

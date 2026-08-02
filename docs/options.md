@@ -92,16 +92,19 @@
 
 典型示例:
 
-- grok2api v3: `http://127.0.0.1:8000/api/admin/v1/accounts/import`
-- grok2api v2: `http://127.0.0.1:8000/admin/api/tokens/add`
-- `http://grok2api:8000/admin/api/tokens/add`
+- 轻量账号池中转服务：`http://192.168.124.168:2202/api/accounts/buffer`
+- Docker 内网账号池：`http://chatgpt2api-account-pool:8080/api/accounts/buffer`
+- grok2api v3：`http://127.0.0.1:8000/api/admin/v1/accounts/import`
+- grok2api v2：`http://127.0.0.1:8000/admin/api/tokens/add`
+- Docker 内网 grok2api v3：`http://grok2api:8000/api/admin/v1/accounts/import`
+- Docker 内网 grok2api v2：`http://grok2api:8000/admin/api/tokens/add`
 
 如果留空,任务仍然能注册,但不会自动入池。
 grok2api v3 额外支持 `api.import_type` 字段(`build`/`console`/`web`)指定账号类型。
 
 ## api.token
 
-调用 sink 管理接口时的鉴权口令。
+调用 sink 管理接口时的管理员密码/管理口令。注册机推送时会带上 `Authorization: Bearer <api.token>`；如果这里没填，脚本会直接跳过推送。
 
 ## api.import_type
 
