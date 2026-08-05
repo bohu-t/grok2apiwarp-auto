@@ -1,0 +1,13 @@
+{
+  "log": {"level": "info", "timestamp": true},
+  "inbounds": [
+    {"type": "socks", "tag": "bootstrap-in", "listen": "0.0.0.0", "listen_port": 10801}
+  ],
+  "outbounds": [
+    {"type": "direct", "tag": "direct"}
+  ],
+  "route": {
+    "rules": [{"inbound": ["bootstrap-in"], "outbound": "direct"}],
+    "final": "direct"
+  }
+}

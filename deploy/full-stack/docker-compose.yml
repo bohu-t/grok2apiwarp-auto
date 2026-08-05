@@ -1,0 +1,114 @@
+name: grok2api-full-stack
+
+services:
+  grok2api:
+    container_name: grok2api
+    image: ${GROK2API_IMAGE:-registry.cn-hangzhou.aliyuncs.com/dxlx/grok2api:20260805-live}
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      QUALITY_GUARD_STATE_FILE: /var/lib/grok2api-quality-guard/state.json
+      QUALITY_GUARD_RUNTIME_CONFIG_FILE: /var/lib/grok2api-quality-guard/runtime-config.json
+    ports:
+      - "${GROK2API_BIND:-127.0.0.1}:${GROK2API_PORT:-28086}:8000"
+    volumes:
+      - ${GROK2API_CONFIG:-./runtime/grok2api/config.yaml}:/run/grok2api/config.yaml:ro
+      - grok2api-data:/app/data
+      - quality-guard-state:/var/lib/grok2api-quality-guard
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  resin:
+    container_name: resin
+    image: ${RESIN_IMAGE:-registry.cn-hangzhou.aliyuncs.com/dxlx/resin:20260805-live}
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      RESIN_ADMIN_TOKEN: ${RESIN_ADMIN_TOKEN:?set RESIN_ADMIN_TOKEN}
+      RESIN_PROXY_TOKEN: ${RESIN_PROXY_TOKEN:?set RESIN_PROXY_TOKEN}
+      RESIN_LISTEN_ADDRESS: 0.0.0.0
+      RESIN_PORT: 2260
+      RESIN_STATE_DIR: /var/lib/resin
+      RESIN_CACHE_DIR: /var/cache/resin
+      RESIN_LOG_DIR: /var/log/resin
+    ports:
+      - "${RESIN_BIND:-127.0.0.1}:${RESIN_PORT:-2260}:2260"
+    volumes:
+      - resin-cache:/var/cache/resin
+      - resin-state:/var/lib/resin
+      - resin-log:/var/log/resin
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:2260/ >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  flaresolverr:
+    container_name: flaresolverr
+    image: ${FLARESOLVERR_IMAGE:-registry.cn-hangzhou.aliyuncs.com/dxlx/flaresolverr:20260805-live}
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      LOG_LEVEL: ${FLARESOLVERR_LOG_LEVEL:-info}
+      BROWSER_TIMEOUT: ${FLARESOLVERR_BROWSER_TIMEOUT:-120000}
+    shm_size: 1gb
+    restart: unless-stopped
+
+  sing-box-bridge:
+    container_name: sing-box-bridge
+    image: ${SING_BOX_IMAGE:-registry.cn-hangzhou.aliyuncs.com/dxlx/sing-box:20260805-live}
+    command: ["run", "-c", "/etc/sing-box/config.json"]
+    volumes:
+      - ./runtime/sing-box/config.json:/etc/sing-box/config.json:ro
+    restart: unless-stopped
+
+  egress-quality-guard:
+    container_name: grok2api-egress-quality-guard
+    image: ${QUALITY_GUARD_IMAGE:-registry.cn-hangzhou.aliyuncs.com/dxlx/grok2api-egress-quality-guard:20260805-live}
+    depends_on:
+      grok2api:
+        condition: service_healthy
+    env_file:
+      - ./runtime/quality-guard.env
+    environment:
+      GROK2API_BASE_URL: http://grok2api:8000
+      QUALITY_GUARD_STATE_FILE: /var/lib/grok2api-quality-guard/state.json
+      QUALITY_GUARD_RUNTIME_CONFIG_FILE: /var/lib/grok2api-quality-guard/runtime-config.json
+    volumes:
+      - quality-guard-state:/var/lib/grok2api-quality-guard
+    restart: unless-stopped
+
+  console:
+    container_name: grok-register-console
+    image: ${REGISTER_CONSOLE_IMAGE:-registry.cn-hangzhou.aliyuncs.com/dxlx/grok2apiwarp-auto-console:20260805-live}
+    working_dir: /workspace
+    command: python /workspace/apps/console/app.py
+    env_file:
+      - ./runtime/register-console.env
+    environment:
+      GROK_REGISTER_SOURCE_DIR: /workspace
+      GROK_REGISTER_PYTHON: /usr/local/bin/python
+      GROK_REGISTER_CONSOLE_HOST: 0.0.0.0
+      GROK_REGISTER_CONSOLE_PORT: 18600
+    ports:
+      - "${REGISTER_CONSOLE_BIND:-127.0.0.1}:${REGISTER_CONSOLE_PORT:-18600}:18600"
+    volumes:
+      - ../..:/workspace
+      - register-console-runtime:/workspace/apps/console/runtime
+    restart: unless-stopped
+
+volumes:
+  grok2api-data:
+  quality-guard-state:
+  resin-cache:
+  resin-state:
+  resin-log:
+  register-console-runtime:
