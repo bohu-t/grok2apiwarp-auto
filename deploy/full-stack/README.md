@@ -1,8 +1,6 @@
 # Grok2API Full Stack — 部署教程
 
-本目录是 Grok2API 完整栈的部署包。GitHub 保存源码和部署脚本，阿里云 ACR 保存已构建好的运行镜像；目标服务器不需要现场构建。
-
-当前固定镜像快照：`20260805-live`。
+本目录是 Grok2API 完整栈的部署包。GitHub 保存源码和部署脚本，运行镜像由 `.env.example` 指定；目标服务器不需要现场构建。
 
 > ⚠️ 本教程用于新服务器部署或独立测试环境。**不要在现有生产目录中直接执行 `docker compose down` 或 `up -d`**；当前生产环境不在本次发布切换范围内。
 
@@ -23,8 +21,8 @@
 ## 部署边界
 
 - GitHub 保存源码、Compose、初始化和运维脚本。
-- 阿里云 ACR 保存已构建好的运行镜像。
-- 目标机只执行 `docker compose pull`，不执行 `docker compose build`。
+- 运行镜像由 `.env.example` 指定，提前构建好，目标机无需 `docker compose build`。
+- 目标机只执行 `docker compose pull`。
 - `.env`、密码、Token、账号、订阅、数据库、任务和日志不进入 Git。
 - **当前生产容器不在本次发布范围内，不需要切换、重启或重建。**
 
@@ -52,22 +50,6 @@ cd /opt/grok2apiwarp-auto
 git pull --ff-only
 cd deploy/full-stack
 ```
-
-## 登录阿里云镜像仓库
-
-六个运行镜像位于：
-
-```text
-registry.cn-hangzhou.aliyuncs.com/dxlx/*:20260805-live
-```
-
-如果仓库是私有的，在目标机交互式登录：
-
-```bash
-docker login registry.cn-hangzhou.aliyuncs.com
-```
-
-按提示输入 ACR 用户名和密码。**不要把密码写入 README、`.env`、Shell 历史或 Git。**
 
 ## 初始化运行目录
 
@@ -117,7 +99,7 @@ docker login registry.cn-hangzhou.aliyuncs.com
 docker compose config --images
 ```
 
-输出应全部指向 `registry.cn-hangzhou.aliyuncs.com/dxlx/*:20260805-live`，且 Compose 中不应包含 `build:` 指令。
+输出应全部指向 `.env.example` 中指定的固定镜像标签，且 Compose 中不应包含 `build:` 指令。
 
 ## 拉取镜像
 
@@ -341,14 +323,6 @@ python3 -m unittest discover -s vendor/grok2api/tools/egress-quality-guard -p '*
 
 ## 常见问题
 
-### `docker compose pull` 提示无权限
-
-```bash
-docker login registry.cn-hangzhou.aliyuncs.com
-```
-
-确认登录的是有权读取 `dxlx` 命名空间的 ACR 账号。
-
 ### Compose 仍显示旧镜像或 GHCR
 
 检查本机 `.env` 是否是旧版本，重新对照 `.env.example`，然后执行：
@@ -386,4 +360,4 @@ docker compose logs --tail=200 egress-quality-guard
 
 ---
 
-运行时镜像来自阿里云固定快照 `20260805-live`，目标机无需构建镜像。同步工具因需要读取 Docker volume 并调用容器验证，所以保留为宿主机 root-only 脚本，绝不能暴露成网络 API。
+运行时镜像来自固定快照标签，目标机无需构建镜像。同步工具因需要读取 Docker volume 并调用容器验证，所以保留为宿主机 root-only 脚本，绝不能暴露成网络 API。
