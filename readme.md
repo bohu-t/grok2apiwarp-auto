@@ -1,170 +1,58 @@
-# Grok Register
+# Grok2API Full Stack
 
-面向 `x.ai` 注册批处理的一体化项目，提供控制台、注册执行器、WARP 网络出口、`grok2api` token 落池和运行时环境。
+Grok 账号注册 + Grok2API 代理 + 出口管理的一体化部署项目。
 
-## 功能
+## 组件
 
-- 命令行直接跑注册
-- 在 Web 控制台里创建批量任务
-- 给每个任务独立配置出口、邮箱参数和 sink
-- 实时查看每个任务的轮次、成功数、失败数和日志
-- 注册成功后自动把 `sso` 推入 `grok2api` 兼容接口
+| 服务 | 用途 |
+|------|------|
+| `grok2api` | Go 后端 + 前端，SQLite 持久化，OpenAI 兼容 API |
+| `resin` | 订阅、代理节点及健康状态管理 |
+| `sing-box-bridge` | 为 Resin 中选出的节点提供稳定 SOCKS 入站 |
+| `flaresolverr` | 出口流程使用的 challenge-solving 依赖 |
+| `egress-quality-guard` | 节点主动/被动质量检测及隔离状态管理 |
+| `console` | 浏览器注册任务控制台 |
 
-## 先决条件
-
-这个项目要跑通，至少要有下面 3 个外部条件：
-
-- 可用的网络出口
-- 可被 `x.ai` 接受的临时邮箱域名
-- 可接收 token 的下游 sink，例如 `grok2api`
-
-现在仓库已经内置：
-
-- `warp`：默认网络出口
-- `grok2api`：默认 token sink
-
-所以新部署时，你不需要再额外去拉其它仓库拼接。你还需要自己准备的，主要是临时邮箱 API 和对应域名。
-
-## 最快启动方式
-
-推荐第一次使用直接走 Docker。
+## 一键部署
 
 ```bash
 git clone https://github.com/bohu-t/grok2apiwarp-auto.git
-cd grok2apiwarp-auto
-cp .env.example .env
-docker compose up -d --build
+cd grok2apiwarp-auto/deploy/full-stack
+./deploy.sh
 ```
 
-如果需要改外网端口或 `grok2api` 后台口令，先编辑 `.env`。
+部署脚本会自动完成初始化、检查、拉取镜像和启动全部服务。首次启动后，打开控制台补充临时邮箱等参数即可开始注册。
 
-启动后访问：
-
-- `http://<你的服务器IP>:18600` — 注册控制台
-- `http://<你的服务器IP>:8000` — grok2api v3 管理端（内置前端）
-- `socks5://<你的服务器IP>:1080` — 内置 WARP 出口，默认允许局域网访问
-
-如果只想让 WARP 出口本机可用，把 `.env` 里的 `WARP_HOST` 改成 `127.0.0.1`。
-
-然后在控制台里填写：
-
-- `temp_mail_api_base`
-- `temp_mail_admin_password`
-- `temp_mail_domain`
-
-其中 DuckMail 的推荐填法是：
-
-- `temp_mail_api_base`: `https://api.duckmail.sbs`
-- `temp_mail_admin_password`: 可留空；如果你要用 DuckMail 私有域名，再填 API Key
-- `temp_mail_domain`: 可留空；留空时执行器会自动挑一个 DuckMail 公开可用域名
-
-默认情况下：
-
-- `browser_proxy` 和 `proxy` 已经预设为容器内的 `warp`
-- `api.endpoint` 和 `api.token` 已经预设为容器内的 `grok2api`（v3 使用 `/api/admin/v1/accounts/import`）
-
-所以第一次部署时，你通常只需要补全临时邮箱这一组参数。
-
-## 宿主机启动方式
+## 手动部署
 
 ```bash
-cp config.example.json config.json
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt
-sudo apt-get update
-sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xvfb chromium-browser
-./deploy/start-console.sh
+cd deploy/full-stack
+./scripts/init.sh
+./scripts/validate.sh
+docker compose pull
+docker compose up -d
 ```
 
-默认监听 `0.0.0.0:18600`。
+## 启动后
 
-宿主机模式最容易漏的就是浏览器依赖，至少补齐这 3 项：
+- 控制台：`http://<服务器IP>:18600`
+- Grok2API 管理端：`http://<服务器IP>:28086`
+- 首次登录 Grok2API 使用 `runtime/grok2api/config.yaml` 中自动生成的管理员密码
 
-- `pip install -r requirements.txt`，这里已经包含 `pyvirtualdisplay`
-- `apt install xvfb`
-- `apt install chromium-browser` 或自行安装 `google-chrome-stable`
+## 文档
 
-如果你只想先把内置网络和 sink 起起来，也可以执行：
-
-```bash
-cp .env.example .env
-docker compose up -d warp grok2api
-```
-
-## 命令行验证
-
-在真正跑批之前，建议先用一次单轮验证检查链路：
-
-```bash
-cp config.example.json config.json
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt
-sudo apt-get update
-sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xvfb chromium-browser
-python DrissionPage_example.py --count 1
-```
-
-## 当前配置模板
-
-```json
-{
-  "run": {
-    "count": 50
-  },
-  "temp_mail_api_base": "https://mail-api.example.com",
-  "temp_mail_admin_password": "<your_admin_password>",
-  "temp_mail_domain": "mail.example.com",
-  "temp_mail_site_password": "",
-  "proxy": "",
-  "browser_proxy": "",
-  "api": {
-    "endpoint": "http://192.168.124.168:2202/api/accounts/buffer",
-    "token": "<chatgpt2api_admin_password>",
-    "append": true,
-    "import_type": "build"
-  }
-}
-```
-
-配置模板说明：
-
-- 仓库里提供的是可公开分享的示例配置，不包含任何真实邮箱接口、真实域名、密码或 token
-- 实际运行时，请把你自己的参数写进本机 `config.json` 或控制台系统配置里，不要把生产凭据提交回仓库
-- 代码兼容旧版 `duckmail_*` 字段；现在也原生支持把 DuckMail 直接接到 `temp_mail_*` 这一套字段上
-
-## 文档入口
-
-- 新手快速上手：[docs/quickstart.md](docs/quickstart.md)
-- 完整业务链路：[docs/business-flow.md](docs/business-flow.md)
-- 配置字段说明：[docs/options.md](docs/options.md)
-- 临时邮箱接口要求：[docs/temp-mail-api.md](docs/temp-mail-api.md)
-- 模块边界和架构：[docs/architecture.md](docs/architecture.md)
+- [完整部署教程](deploy/full-stack/README.md) — 初始化、配置、同步、备份、恢复、排障
+- [docs/](docs/) — 业务链路、配置字段、架构说明
 
 ## 项目结构
 
-- [apps/console](apps/console)：控制台
-- [apps/network-gateway](apps/network-gateway)：前置网络出口约定
-- [apps/register-runner](apps/register-runner)：执行器模块说明
-- [apps/token-sink](apps/token-sink)：结果落池说明
-- [apps/worker-runtime](apps/worker-runtime)：运行时环境定义
-- [deploy](deploy)：启动脚本和部署骨架
-- [.env.example](.env.example)：一体化部署环境变量模板
-- [docs](docs)：架构、流程、快速开始、配置说明
-- [DrissionPage_example.py](DrissionPage_example.py)：当前主执行脚本
-- [email_register.py](email_register.py)：临时邮箱适配层
-
-## 兼容性说明
-
-- 根目录命令行脚本继续保留，可直接使用
-- 新增控制台和模块目录不会接管你现有生产目录
-- 控制台任务全部运行在 `apps/console/runtime/tasks/` 下的独立目录里
+- [apps/](apps/) — 控制台、网络出口、注册执行器、token sink、运行时环境
+- [deploy/full-stack/](deploy/full-stack/) — Compose、初始化脚本、同步工具、备份恢复
+- [vendor/grok2api/](vendor/grok2api/) — Grok2API v3 后端 + 前端
 
 ## 致谢
 
-- 感谢 [ReinerBRO](https://github.com/ReinerBRO) 对仓库整理、部署验证和整合方向的推动。
-- 感谢 [XeanYu](https://github.com/XeanYu) 和 [chenyme](https://github.com/chenyme) 的开源项目与思路，这个仓库是在他们相关工作的基础上继续整理、集成和工程化。
-- [kevinr229/grok-maintainer](https://github.com/kevinr229/grok-maintainer)
+- [ReinerBRO](https://github.com/ReinerBRO) 对仓库整理、部署验证和整合方向的推动
+- [XeanYu](https://github.com/XeanYu) 和 [chenyme](https://github.com/chenyme) 的开源项目与思路
 - [DrissionPage](https://github.com/g1879/DrissionPage)
 - [grok2api](https://github.com/chenyme/grok2api)
